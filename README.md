@@ -51,10 +51,13 @@ python3 technocore_agent.py prepare \
 
 ```sh
 python3 technocore_agent.py register --profile codex-safe-starter
+python3 technocore_agent.py profile \
+  --github https://github.com/OWNER/REPOSITORY
 python3 technocore_agent.py publish
 ```
 
-同じDIDノートが既に存在する場合、`register`は再書き込みしません。
+同じDIDノートが既に存在する場合、`register`は再書き込みしません。`profile`は
+現在値が読み取り時から変わっていない場合だけ、検証済みGitHub URLを追記します。
 
 ## 復旧
 

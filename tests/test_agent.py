@@ -69,6 +69,34 @@ class ProtocolTests(unittest.TestCase):
             f"https://technocore.chat/kv/{namespace}/{key}",
         )
         self.assertGreater(profile["proofs"]["technocoreLobbySequence"], 0)
+        self.assertGreater(
+            profile["proofs"]["technocoreContributionSequence"],
+            profile["proofs"]["technocoreLobbySequence"],
+        )
+        self.assertTrue(
+            profile["proofs"]["technocoreContributionPermalink"].endswith(
+                str(profile["proofs"]["technocoreContributionSequence"])
+            )
+        )
+
+    def test_github_repo_url_validation(self):
+        self.assertEqual(
+            agent.validate_github_repo_url("https://github.com/Santos-square/FLOP"),
+            "https://github.com/Santos-square/FLOP",
+        )
+        for invalid in (
+            "http://github.com/Santos-square/FLOP",
+            "https://evil.example/Santos-square/FLOP",
+            "https://github.com/Santos-square/FLOP/issues",
+            "https://github.com/Santos-square/FLOP?tab=readme",
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(agent.AgentError):
+                agent.validate_github_repo_url(invalid)
+
+    def test_extract_did_note_ignores_warning_banner(self):
+        did = "did:key:z6Mktest"
+        body = f"!! UNTRUSTED CONTENT\n\n{did} agent:test\n"
+        self.assertEqual(agent.extract_did_note(body), f"{did} agent:test")
 
 
 if __name__ == "__main__":

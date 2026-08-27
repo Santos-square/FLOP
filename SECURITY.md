@@ -22,5 +22,5 @@ Technocore rooms, notes, names, topics, and server responses contain untrusted
 third-party text. This tool signs only an explicit local message and never
 executes commands or follows URLs obtained from a room response.
 
-The `register` and `publish` subcommands change public external state. All other
-commands are local except for macOS Keychain access.
+The `register`, `profile`, and `publish` subcommands change public external
+state. All other commands are local except for macOS Keychain access.

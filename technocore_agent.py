@@ -38,6 +38,7 @@ SPKI_ED25519_PREFIX = bytes.fromhex("302a300506032b6570032100")
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 SWEEP_CATEGORIES = {"Cc", "Cf", "Cs", "Co", "Zl", "Zp"}
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,47}$")
+GITHUB_COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 class AgentError(RuntimeError):
@@ -328,6 +329,28 @@ def did_note_location(did: str) -> tuple[str, str]:
     return f"did-{fingerprint[:2]}", fingerprint[2:]
 
 
+def validate_github_repo_url(url: str) -> str:
+    parts = parse.urlsplit(url)
+    path_parts = [part for part in parts.path.split("/") if part]
+    if (
+        parts.scheme != "https"
+        or parts.netloc.lower() != "github.com"
+        or parts.query
+        or parts.fragment
+        or len(path_parts) != 2
+        or not all(GITHUB_COMPONENT_PATTERN.fullmatch(part) for part in path_parts)
+    ):
+        raise AgentError("GitHub URL must be exactly https://github.com/<owner>/<repository>.")
+    return f"https://github.com/{path_parts[0]}/{path_parts[1]}"
+
+
+def extract_did_note(body: str) -> str:
+    candidates = [line.strip() for line in body.splitlines() if line.strip().startswith("did:key:")]
+    if len(candidates) != 1:
+        raise AgentError("The DID note response did not contain exactly one DID profile line.")
+    return candidates[0]
+
+
 def http_json(url: str, payload: dict[str, object] | None = None) -> tuple[int, str]:
     data = None
     headers = {"User-Agent": "FLOP-Safe-Technocore-Agent/1.0"}
@@ -360,6 +383,37 @@ def register_did(profile_label: str) -> tuple[int, str, str]:
         f"{parse.quote(value, safe='')}?if_absent=1"
     )
     status, body = http_json(write_url)
+    return status, body, read_url
+
+
+def update_did_profile(profile_label: str, github_url: str) -> tuple[int, str, str]:
+    if not NAME_PATTERN.fullmatch(profile_label):
+        raise AgentError("Profile labels must match ^[a-z0-9][a-z0-9_-]{0,47}$.")
+    github_url = validate_github_repo_url(github_url)
+    did = current_did()
+    namespace, key = did_note_location(did)
+    read_url = f"{TECHNOCORE_ORIGIN}/kv/{namespace}/{key}"
+    read_status, read_body = http_json(read_url)
+    if read_status != 200:
+        raise AgentError(f"Could not read the existing DID note (HTTP {read_status}).")
+    current = extract_did_note(read_body)
+    if current.split(maxsplit=1)[0] != did:
+        raise AgentError("The existing DID note is not owned by this local DID.")
+
+    value = f"{did} agent:{profile_label} github:{github_url}"
+    if current == value:
+        return 200, "already updated\n", read_url
+    write_url = (
+        f"{TECHNOCORE_ORIGIN}/kv/{namespace}/{key}/set/{parse.quote(value, safe='')}?"
+        f"{parse.urlencode({'if': current})}"
+    )
+    status, body = http_json(write_url)
+    if status not in (200, 201):
+        return status, body, read_url
+
+    verify_status, verify_body = http_json(read_url)
+    if verify_status != 200 or extract_did_note(verify_body) != value:
+        raise AgentError("The DID profile update could not be verified after writing.")
     return status, body, read_url
 
 
@@ -418,6 +472,13 @@ def command_register(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def command_profile(args: argparse.Namespace) -> None:
+    status, body, read_url = update_did_profile(args.profile, args.github)
+    print(json.dumps({"status": status, "response": body, "read_url": read_url}, indent=2))
+    if status not in (200, 201):
+        raise SystemExit(1)
+
+
 def command_publish(_: argparse.Namespace) -> None:
     status, body = publish_pending_checkin()
     pending = json.loads(PENDING_PATH.read_text(encoding="utf-8"))
@@ -451,6 +512,13 @@ def build_parser() -> argparse.ArgumentParser:
     register_parser = subparsers.add_parser("register", help="PUBLIC: register the DID note on Technocore")
     register_parser.add_argument("--profile", default="codex-safe-starter")
     register_parser.set_defaults(func=command_register)
+
+    profile_parser = subparsers.add_parser(
+        "profile", help="PUBLIC: conditionally add a GitHub repository to the DID note"
+    )
+    profile_parser.add_argument("--profile", default="codex-safe-starter")
+    profile_parser.add_argument("--github", required=True)
+    profile_parser.set_defaults(func=command_profile)
 
     publish_parser = subparsers.add_parser("publish", help="PUBLIC: publish the prepared signed check-in")
     publish_parser.set_defaults(func=command_publish)
