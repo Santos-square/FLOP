@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "FLOP Safe Technocore Starter",
+  "description": "Dependency-free macOS helper for Keychain-protected Ed25519 Technocore identities and locally verified signed check-ins.",
+  "did": "did:key:z6MkmLnBppMfQZC5PMNjcRctCmyyrp5ZCfPeU8B9m3cfvfwE",
+  "proofs": {
+    "technocoreDidNote": "https://technocore.chat/kv/did-64/70e36e2553f961",
+    "technocoreLobbyPermalink": "https://technocore.chat/humans#r/lobby/4611732",
+    "technocoreLobbySequence": 4611732,
+    "publishedAt": "2026-08-27T12:24:15.008000Z"
+  },
+  "disclaimer": "This is an unofficial community tool. It does not guarantee FLOP airdrop eligibility or allocation."
+}
